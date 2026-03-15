@@ -1,0 +1,24 @@
+{
+  "name": "omnimem-openclaw-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dual-shape OmniMemory plugin project for OpenClaw",
+  "scripts": {
+    "test": "node --test ./test/runtime.test.mjs ./test/plugins.test.mjs ./test/replacement-patch.test.mjs ./test/installer-skill.test.mjs ./test/standard-packaging.test.mjs",
+    "test:integration": "node --test ./test/*.integration.test.mjs",
+    "smoke:memory-slot": "node ./scripts/run-local-memory-slot-smoke.mjs",
+    "smoke:standard-install": "node ./scripts/run-standard-install-smoke.mjs",
+    "doctor": "node ./scripts/doctor.mjs",
+    "packages:sync": "node ./scripts/sync-plugin-packages.mjs",
+    "manage:status": "node ./scripts/omnimemory-manage.mjs status",
+    "manage:overlay": "node ./scripts/omnimemory-manage.mjs install --mode overlay",
+    "manage:replacement": "node ./scripts/omnimemory-manage.mjs install --mode replacement",
+    "manage:rollback": "node ./scripts/omnimemory-manage.mjs rollback",
+    "patch:status": "node ./scripts/openclaw-replacement-patch.mjs status",
+    "patch:apply": "node ./scripts/openclaw-replacement-patch.mjs apply",
+    "patch:revert": "node ./scripts/openclaw-replacement-patch.mjs revert",
+    "skill:validate": "bash -lc 'python \"${OPENCLAW_REPO_ROOT:-../openclaw}/skills/skill-creator/scripts/quick_validate.py\" ./skills/omnimemory-installer'",
+    "skill:package": "bash -lc 'python \"${OPENCLAW_REPO_ROOT:-../openclaw}/skills/skill-creator/scripts/package_skill.py\" ./skills/omnimemory-installer ./dist'"
+  }
+}

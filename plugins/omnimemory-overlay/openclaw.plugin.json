@@ -1,0 +1,54 @@
+{
+  "id": "omnimemory-overlay",
+  "name": "OmniMemory Overlay",
+  "description": "Non-destructive external long-term memory overlay for OpenClaw.",
+  "uiHints": {
+    "apiKey": {
+      "label": "OmniMemory API Key",
+      "sensitive": true,
+      "placeholder": "qbk_xxx",
+      "help": "OmniMemory API key or ${OMNI_MEMORY_API_KEY}"
+    },
+    "baseUrl": {
+      "label": "Base URL",
+      "placeholder": "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory",
+      "help": "OmniMemory API root"
+    },
+    "autoRecall": {
+      "label": "Auto Recall",
+      "help": "Recall memory before each agent run"
+    },
+    "autoCapture": {
+      "label": "Auto Capture",
+      "help": "Write recent conversation turns back to OmniMemory"
+    },
+    "captureStrategy": {
+      "label": "Capture Strategy",
+      "help": "Choose whether to write the last turn or the full normalized session"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey": { "type": "string" },
+      "baseUrl": { "type": "string" },
+      "sessionScope": { "type": "string", "enum": ["global", "session"] },
+      "searchLimit": { "type": "number", "minimum": 1 },
+      "failSilent": { "type": "boolean" },
+      "timeoutMs": { "type": "number", "minimum": 1 },
+      "autoRecall": { "type": "boolean" },
+      "autoCapture": { "type": "boolean" },
+      "recallTopK": { "type": "number", "minimum": 1 },
+      "recallMinScore": { "type": "number" },
+      "minPromptChars": { "type": "number", "minimum": 0 },
+      "captureStrategy": { "type": "string", "enum": ["last_turn", "full_session"] },
+      "captureRoles": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["user", "assistant", "tool", "system"] }
+      },
+      "writeWait": { "type": "boolean" },
+      "promptBlockTitle": { "type": "string" }
+    }
+  }
+}

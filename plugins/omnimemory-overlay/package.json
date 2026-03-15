@@ -1,0 +1,19 @@
+{
+  "name": "@omnimem/omnimemory-overlay",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Non-destructive external long-term memory overlay for OpenClaw.",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.11"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "omnimemory-memory",
+  "kind": "memory",
+  "name": "OmniMemory",
+  "description": "OmniMemory-backed memory slot plugin for OpenClaw.",
+  "uiHints": {
+    "apiKey": {
+      "label": "OmniMemory API Key",
+      "sensitive": true,
+      "placeholder": "qbk_xxx",
+      "help": "OmniMemory API key or ${OMNI_MEMORY_API_KEY}"
+    },
+    "baseUrl": {
+      "label": "Base URL",
+      "placeholder": "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory",
+      "help": "OmniMemory API root"
+    },
+    "autoCapture": {
+      "label": "Auto Capture",
+      "help": "Write recent conversation turns back to OmniMemory"
+    },
+    "captureStrategy": {
+      "label": "Capture Strategy",
+      "help": "Choose whether to write the last turn or the full normalized session"
+    },
+    "suppressLocalMemoryBootstrap": {
+      "label": "Suppress Local Memory Bootstrap",
+      "help": "When replacement patch is applied, suppress local MEMORY.md and memory/*.md bootstrap injection"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey": { "type": "string" },
+      "baseUrl": { "type": "string" },
+      "sessionScope": { "type": "string", "enum": ["global", "session"] },
+      "searchLimit": { "type": "number", "minimum": 1 },
+      "failSilent": { "type": "boolean" },
+      "timeoutMs": { "type": "number", "minimum": 1 },
+      "autoCapture": { "type": "boolean" },
+      "captureStrategy": { "type": "string", "enum": ["last_turn", "full_session"] },
+      "captureRoles": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["user", "assistant", "tool", "system"] }
+      },
+      "writeWait": { "type": "boolean" },
+      "suppressLocalMemoryBootstrap": { "type": "boolean" }
+    }
+  }
+}

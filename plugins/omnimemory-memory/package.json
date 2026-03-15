@@ -1,0 +1,19 @@
+{
+  "name": "@omnimem/omnimemory-memory",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OmniMemory-backed memory slot plugin for OpenClaw.",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.11"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}
