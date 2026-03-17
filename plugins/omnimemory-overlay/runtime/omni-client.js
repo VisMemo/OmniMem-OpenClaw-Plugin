@@ -225,8 +225,16 @@ async function waitForJob({ config, jobId, timeoutMs }) {
   }
 }
 
+function resolveIngestSessionId(config, { sessionKey, sessionId }) {
+  const explicitSessionId = normalizeString(sessionKey) || normalizeString(sessionId);
+  if (explicitSessionId) {
+    return explicitSessionId;
+  }
+  return resolveSessionId(config, { sessionKey, sessionId });
+}
+
 export async function ingestMessages({ config, sessionKey, sessionId, messages, statePath, wait = false }) {
-  const resolvedSessionId = resolveSessionId(config, { sessionKey, sessionId });
+  const resolvedSessionId = resolveIngestSessionId(config, { sessionKey, sessionId });
   if (!resolvedSessionId || resolvedSessionId === "global") {
     throw new Error("session-scoped ingest requires sessionKey or sessionId");
   }
