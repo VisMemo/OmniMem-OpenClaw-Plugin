@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
 
+const INJECTED_MEMORY_LINES = new Set([
+  "OmniMemory overlay is active for external long-term memory recall.",
+  "Active memory provider: OmniMemory.",
+  "Use memory_search before answering questions about prior work, dates, people, preferences, or todos.",
+  "Use memory_get only after memory_search when you need more detail.",
+  "Do not assume memories come from local MEMORY.md files.",
+]);
+
 function normalizeRole(value) {
   if (typeof value !== "string") {
     return null;
@@ -28,6 +36,22 @@ function extractText(content) {
   return "";
 }
 
+export function sanitizeCapturedText(text) {
+  if (typeof text !== "string") {
+    return "";
+  }
+  const withoutRecallBlocks = text.replace(/<omnimemory-recall\b[\s\S]*?<\/omnimemory-recall>/gi, " ");
+  const withoutInjectedLines = withoutRecallBlocks
+    .split("\n")
+    .filter((line) => !INJECTED_MEMORY_LINES.has(line.trim()))
+    .join("\n");
+  return withoutInjectedLines
+    .replace(/\n[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export function normalizeOpenClawMessages(messages, options = {}) {
   const allowedRoles = new Set(options.captureRoles || ["user", "assistant"]);
   const normalized = [];
@@ -39,7 +63,7 @@ export function normalizeOpenClawMessages(messages, options = {}) {
     if (!role || !allowedRoles.has(role)) {
       continue;
     }
-    const text = extractText(raw.content);
+    const text = sanitizeCapturedText(extractText(raw.content));
     if (!text) {
       continue;
     }
@@ -83,4 +107,3 @@ export function selectMessagesForCapture(messages, strategy = "last_turn") {
 export function fingerprintMessages(messages) {
   return createHash("sha1").update(JSON.stringify(messages)).digest("hex");
 }
-

@@ -32,6 +32,57 @@ function readBody(req) {
   });
 }
 
+function normalizeString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function extractMatchTerms(text) {
+  return normalizeString(text)
+    .toLowerCase()
+    .split(/[^a-z0-9:_-]+/i)
+    .filter((term) => term && (term.length >= 8 || /\d/.test(term)));
+}
+
+function buildDynamicRetrievalItems({ body, state }) {
+  const query = normalizeString(body?.query);
+  if (!query) {
+    return [];
+  }
+  const queryTerms = extractMatchTerms(query);
+  const sessionIds = normalizeString(body?.run_id)
+    ? [normalizeString(body.run_id)]
+    : [...state.sessionTurns.keys()];
+  const items = [];
+
+  for (const sessionId of sessionIds) {
+    const turns = state.sessionTurns.get(sessionId) || [];
+    turns.forEach((turn, index) => {
+      const text = normalizeString(turn?.text);
+      if (!text) {
+        return;
+      }
+      const haystack = text.toLowerCase();
+      const matched =
+        queryTerms.length > 0
+          ? queryTerms.some((term) => haystack.includes(term))
+          : haystack.includes(query.toLowerCase()) || query.toLowerCase().includes(haystack);
+      if (!matched) {
+        return;
+      }
+      items.push({
+        text,
+        score: 0.97,
+        timestamp: turn?.timestamp_iso || new Date().toISOString(),
+        source: "dialog",
+        tkg_event_id: `evt_${sessionId}_${index + 1}`,
+        entities: [],
+      });
+    });
+  }
+
+  return items;
+}
+
 function buildDefaultFixtures() {
   return {
     retrievalItems: [
@@ -87,11 +138,14 @@ function buildDefaultFixtures() {
 
 export async function startMockOmniServer(options = {}) {
   const fixtures = options.fixtures || buildDefaultFixtures();
+  const handlers = options.handlers || {};
   const state = {
     retrievalRequests: [],
+    retrievalResponses: [],
     ingestRequests: [],
     jobs: new Map(),
     sessions: new Map(),
+    sessionTurns: new Map(),
   };
 
   const server = http.createServer(async (req, res) => {
@@ -100,15 +154,27 @@ export async function startMockOmniServer(options = {}) {
       if (req.method === "POST" && url.pathname === "/retrieval") {
         const body = await readBody(req);
         state.retrievalRequests.push(body);
-        json(res, 200, {
+        const handled = await handlers.retrieval?.({ body, fixtures, state, req });
+        if (handled) {
+          json(res, handled.status ?? 200, handled.payload ?? {});
+          return;
+        }
+        const payload = {
           strategy: body.strategy || "dialog_v2",
-          evidence_details: fixtures.retrievalItems,
-        });
+          evidence_details: [...buildDynamicRetrievalItems({ body, state }), ...fixtures.retrievalItems],
+        };
+        state.retrievalResponses.push({ request: body, payload });
+        json(res, 200, payload);
         return;
       }
       if (req.method === "POST" && url.pathname === "/ingest") {
         const body = await readBody(req);
         state.ingestRequests.push(body);
+        const handled = await handlers.ingest?.({ body, fixtures, state, req });
+        if (handled) {
+          json(res, handled.status ?? 200, handled.payload ?? {});
+          return;
+        }
         const jobId = `job_${randomUUID()}`;
         const turns = Array.isArray(body.turns) ? body.turns : [];
         const lastTurnId = turns.length > 0 ? turns[turns.length - 1].turn_id : null;
@@ -116,6 +182,8 @@ export async function startMockOmniServer(options = {}) {
           state.sessions.set(String(body.session_id), {
             cursor_committed: lastTurnId,
           });
+          const existingTurns = state.sessionTurns.get(String(body.session_id)) || [];
+          state.sessionTurns.set(String(body.session_id), [...existingTurns, ...turns]);
         }
         state.jobs.set(jobId, { status: "COMPLETED", session_id: body.session_id || null });
         json(res, 200, { job_id: jobId });

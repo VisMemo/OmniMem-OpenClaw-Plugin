@@ -7,7 +7,7 @@ const pluginRoot = "/Users/zhaoxiang/工作/Openclaw/OmniMem-OpenClaw-Plugin";
 const smokeScript = path.join(pluginRoot, "scripts", "run-standard-install-smoke.mjs");
 
 function runSmoke(mode, port) {
-  return spawnSync("node", [smokeScript, "--mode", mode, "--port", String(port)], {
+  return spawnSync(process.execPath, [smokeScript, "--mode", mode, "--port", String(port)], {
     encoding: "utf8",
     env: process.env,
   });

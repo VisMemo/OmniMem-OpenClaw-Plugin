@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { requireApiKey, resolveSessionId } from "./config.js";
+import { requireApiKey, resolveRecallScopeId, resolveIngestScopeId } from "./config.js";
 import { buildSyntheticPath, parseSyntheticPath } from "./synthetic-path.js";
 import { rememberToolResult, getToolResult } from "./tool-cache.js";
 import { fingerprintMessages } from "./messages.js";
@@ -100,15 +100,15 @@ function applyWindow(text, from, lines) {
   return split.slice(start, count ? start + count : undefined).join("\n");
 }
 
-export async function searchMemory({ config, query, sessionKey, topK, minScore = 0 }) {
+export async function searchMemory({ config, query, sessionKey, sessionId, agentId, topK, minScore = 0 }) {
   const trimmedQuery = typeof query === "string" ? query.trim() : "";
   if (!trimmedQuery) {
     return [];
   }
-  const sessionId = resolveSessionId(config, { sessionKey });
+  const resolvedScopeId = resolveRecallScopeId(config, { sessionKey, sessionId, agentId });
   const body = {
     memory_domain: "dialog",
-    ...(sessionId && sessionId !== "global" ? { run_id: sessionId } : {}),
+    ...(resolvedScopeId && resolvedScopeId !== "global" ? { run_id: resolvedScopeId } : {}),
     query: trimmedQuery,
     strategy: "dialog_v2",
     topk: topK || config.searchLimit,
@@ -225,17 +225,17 @@ async function waitForJob({ config, jobId, timeoutMs }) {
   }
 }
 
-function resolveIngestSessionId(config, { sessionKey, sessionId }) {
-  const explicitSessionId = normalizeString(sessionKey) || normalizeString(sessionId);
-  if (explicitSessionId) {
-    return explicitSessionId;
-  }
-  return resolveSessionId(config, { sessionKey, sessionId });
-}
-
-export async function ingestMessages({ config, sessionKey, sessionId, messages, statePath, wait = false }) {
-  const resolvedSessionId = resolveIngestSessionId(config, { sessionKey, sessionId });
-  if (!resolvedSessionId || resolvedSessionId === "global") {
+export async function ingestMessages({
+  config,
+  sessionKey,
+  sessionId,
+  agentId,
+  messages,
+  statePath,
+  wait = false,
+}) {
+  const resolvedScopeId = resolveIngestScopeId(config, { sessionKey, sessionId, agentId });
+  if (!resolvedScopeId) {
     throw new Error("session-scoped ingest requires sessionKey or sessionId");
   }
   const turns = Array.isArray(messages) ? messages : [];
@@ -243,15 +243,17 @@ export async function ingestMessages({ config, sessionKey, sessionId, messages, 
     return { skipped: true, reason: "no turns" };
   }
   const fingerprint = fingerprintMessages(turns);
-  const stateKey = resolvedSessionId;
+  const stateKey = resolvedScopeId;
   const lastState = sessionWriteState.get(stateKey);
   const persistedState = await readPersistentState(statePath);
-  const previousFingerprint = lastState?.fingerprint || persistedState?.fingerprint;
+  const previousFingerprint =
+    (lastState?.sessionId === resolvedScopeId ? lastState.fingerprint : undefined) ||
+    (persistedState?.sessionId === resolvedScopeId ? persistedState.fingerprint : undefined);
   if (previousFingerprint === fingerprint) {
     return { skipped: true, reason: "duplicate" };
   }
 
-  const session = await getSessionStatus({ config, sessionId: resolvedSessionId });
+  const session = await getSessionStatus({ config, sessionId: resolvedScopeId });
   const baseTurnId = normalizeString(session?.cursor_committed);
   const currentIndex = baseTurnId && /^t(\d+)$/i.test(baseTurnId) ? Number(baseTurnId.slice(1)) : 0;
   const payloadTurns = turns.map((turn, index) => ({
@@ -270,7 +272,7 @@ export async function ingestMessages({ config, sessionKey, sessionId, messages, 
     path: "/ingest",
     method: "POST",
     body: {
-      session_id: resolvedSessionId,
+      session_id: resolvedScopeId,
       memory_domain: "dialog",
       turns: payloadTurns,
       commit_id: randomUUID(),
@@ -280,7 +282,7 @@ export async function ingestMessages({ config, sessionKey, sessionId, messages, 
   const nextState = {
     fingerprint,
     count: payloadTurns.length,
-    sessionId: resolvedSessionId,
+    sessionId: resolvedScopeId,
     updatedAt: new Date().toISOString(),
   };
   sessionWriteState.set(stateKey, nextState);
@@ -291,7 +293,7 @@ export async function ingestMessages({ config, sessionKey, sessionId, messages, 
   }
   return {
     skipped: false,
-    sessionId: resolvedSessionId,
+    sessionId: resolvedScopeId,
     committedTurns: payloadTurns.length,
     jobId,
   };

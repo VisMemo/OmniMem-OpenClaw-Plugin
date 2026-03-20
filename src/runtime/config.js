@@ -2,13 +2,14 @@ const DEFAULT_BASE_URL = "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory";
 
 export const COMMON_DEFAULTS = Object.freeze({
   baseUrl: DEFAULT_BASE_URL,
-  sessionScope: "session",
+  recallScope: "global",
+  ingestScope: "session",
   searchLimit: 8,
   failSilent: true,
   timeoutMs: 10_000,
   autoRecall: true,
   autoCapture: true,
-  recallTopK: 5,
+  recallTopK: 20,
   recallMinScore: 0,
   minPromptChars: 8,
   captureStrategy: "last_turn",
@@ -72,13 +73,37 @@ function normalizeRoles(value) {
   return roles.length > 0 ? roles : [...COMMON_DEFAULTS.captureRoles];
 }
 
+function parseAgentIdFromSessionKey(sessionKey) {
+  const normalized = normalizeString(sessionKey);
+  if (!normalized) {
+    return undefined;
+  }
+  const match = /^agent:([^:]+):/i.exec(normalized);
+  return normalizeString(match?.[1]);
+}
+
+function resolveLegacyScope(rawConfig, defaultScope) {
+  return normalizeEnum(rawConfig.sessionScope, ["global", "agent", "session"], defaultScope);
+}
+
 export function resolveOmniCommonConfig(rawConfig = {}, env = process.env) {
   const apiKey = parseEnvTemplate(rawConfig.apiKey, env);
   const baseUrl = normalizeString(rawConfig.baseUrl, COMMON_DEFAULTS.baseUrl)?.replace(/\/+$/, "");
+  const recallScope = normalizeEnum(
+    rawConfig.recallScope,
+    ["global", "agent", "session"],
+    resolveLegacyScope(rawConfig, COMMON_DEFAULTS.recallScope),
+  );
+  const ingestScope = normalizeEnum(
+    rawConfig.ingestScope,
+    ["global", "agent", "session"],
+    resolveLegacyScope(rawConfig, COMMON_DEFAULTS.ingestScope),
+  );
   return {
     apiKey,
     baseUrl,
-    sessionScope: normalizeEnum(rawConfig.sessionScope, ["global", "session"], COMMON_DEFAULTS.sessionScope),
+    recallScope,
+    ingestScope,
     searchLimit: Math.floor(
       normalizeNumber(rawConfig.searchLimit, COMMON_DEFAULTS.searchLimit, { min: 1 }),
     ),
@@ -104,6 +129,10 @@ export function resolveOmniCommonConfig(rawConfig = {}, env = process.env) {
   };
 }
 
+export function resolveAgentId(ctx = {}) {
+  return parseAgentIdFromSessionKey(ctx.sessionKey) || normalizeString(ctx.agentId);
+}
+
 export function requireApiKey(config) {
   if (!config.apiKey) {
     throw new Error("omnimemory apiKey is required");
@@ -111,9 +140,25 @@ export function requireApiKey(config) {
   return config.apiKey;
 }
 
-export function resolveSessionId(config, ctx = {}) {
-  if (config.sessionScope === "session") {
-    return ctx.sessionKey || ctx.sessionId || undefined;
+export function resolveScopeId(scope, ctx = {}) {
+  if (scope === "global") {
+    return "global";
   }
-  return "global";
+  if (scope === "agent") {
+    const agentId = resolveAgentId(ctx);
+    return agentId ? `agent:${agentId}` : normalizeString(ctx.sessionId) || normalizeString(ctx.sessionKey);
+  }
+  return normalizeString(ctx.sessionId) || normalizeString(ctx.sessionKey);
+}
+
+export function resolveRecallScopeId(config, ctx = {}) {
+  return resolveScopeId(config.recallScope, ctx);
+}
+
+export function resolveIngestScopeId(config, ctx = {}) {
+  return resolveScopeId(config.ingestScope, ctx);
+}
+
+export function resolveSessionId(config, ctx = {}) {
+  return resolveIngestScopeId(config, ctx);
 }

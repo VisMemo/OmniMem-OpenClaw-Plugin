@@ -22,6 +22,14 @@
       "label": "Auto Capture",
       "help": "Write recent conversation turns back to OmniMemory"
     },
+    "recallScope": {
+      "label": "Recall Scope",
+      "help": "Choose whether recall searches across the whole account, one agent namespace, or only the current session"
+    },
+    "ingestScope": {
+      "label": "Ingest Scope",
+      "help": "Choose which scope receives captured conversation turns"
+    },
     "captureStrategy": {
       "label": "Capture Strategy",
       "help": "Choose whether to write the last turn or the full normalized session"
@@ -33,7 +41,9 @@
     "properties": {
       "apiKey": { "type": "string" },
       "baseUrl": { "type": "string" },
-      "sessionScope": { "type": "string", "enum": ["global", "session"] },
+      "recallScope": { "type": "string", "enum": ["global", "agent", "session"] },
+      "ingestScope": { "type": "string", "enum": ["global", "agent", "session"] },
+      "sessionScope": { "type": "string", "enum": ["global", "agent", "session"] },
       "searchLimit": { "type": "number", "minimum": 1 },
       "failSilent": { "type": "boolean" },
       "timeoutMs": { "type": "number", "minimum": 1 },

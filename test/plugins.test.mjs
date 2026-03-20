@@ -52,10 +52,9 @@ test("memory plugin registers memory tools and lifecycle hooks", async () => {
   );
 
   const factory = api.state.tools[0].tool;
-  const tools = factory({ sessionKey: "agent:main:test", sessionId: "sid" });
+  const tools = factory({ sessionKey: "agent:main:test", sessionId: "sid", agentId: "main" });
   assert.equal(Array.isArray(tools), true);
   assert.equal(tools.length, 2);
   assert.equal(tools[0].name, "memory_search");
   assert.equal(tools[1].name, "memory_get");
 });
-

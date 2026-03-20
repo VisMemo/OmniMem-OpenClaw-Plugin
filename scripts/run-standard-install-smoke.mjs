@@ -80,7 +80,7 @@ async function terminateProcessTree(child) {
 }
 
 function runNode(args, env) {
-  const result = spawnSync("node", args, {
+  const result = spawnSync(process.execPath, args, {
     encoding: "utf8",
     env: {
       ...env,
@@ -95,7 +95,7 @@ function runNode(args, env) {
 }
 
 function runOpenClaw(openclawDir, args, env, { allowFailure = false } = {}) {
-  const result = spawnSync("node", [path.join(openclawDir, "dist", "index.js"), ...args], {
+  const result = spawnSync(process.execPath, [path.join(openclawDir, "openclaw.mjs"), ...args], {
     encoding: "utf8",
     env: {
       ...env,
@@ -140,15 +140,13 @@ async function waitForGateway({ port, token, timeoutMs = 30_000 }) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
-        method: "POST",
+      const response = await fetch(`http://127.0.0.1:${port}/health`, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ tool: "memory_search", args: {} }),
       });
-      if ([200, 400, 404].includes(response.status)) {
+      if ([200, 401].includes(response.status)) {
         return;
       }
     } catch {
@@ -160,18 +158,34 @@ async function waitForGateway({ port, token, timeoutMs = 30_000 }) {
 }
 
 async function startGateway({ openclawDir, env, port, token }) {
-  const child = spawn("pnpm", ["gateway:dev"], {
-    cwd: openclawDir,
-    detached: true,
-    env: {
-      ...env,
-      OPENCLAW_GATEWAY_PORT: String(port),
-      OPENCLAW_SKIP_CHANNELS: "1",
-      CLAWDBOT_SKIP_CHANNELS: "1",
-      NO_COLOR: "1",
+  const child = spawn(
+    process.execPath,
+    [
+      path.join(openclawDir, "openclaw.mjs"),
+      "gateway",
+      "run",
+      "--allow-unconfigured",
+      "--bind",
+      "loopback",
+      "--port",
+      String(port),
+      "--auth",
+      "token",
+      "--token",
+      token,
+    ],
+    {
+      cwd: openclawDir,
+      detached: true,
+      env: {
+        ...env,
+        OPENCLAW_SKIP_CHANNELS: "1",
+        CLAWDBOT_SKIP_CHANNELS: "1",
+        NO_COLOR: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
 
   let stdout = "";
   let stderr = "";

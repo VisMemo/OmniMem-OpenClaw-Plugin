@@ -1,6 +1,6 @@
 {
-  "name": "@omni-pt/omnimemory-overlay",
-  "version": "0.1.4",
+  "name": "@omnimem/omnimemory-overlay",
+  "version": "0.1.0",
   "type": "module",
   "description": "Non-destructive external long-term memory overlay for OpenClaw.",
   "openclaw": {

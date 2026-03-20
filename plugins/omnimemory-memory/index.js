@@ -19,6 +19,8 @@ const plugin = {
         createMemorySearchTool({
           config,
           sessionKey: ctx.sessionKey,
+          sessionId: ctx.sessionId,
+          agentId: ctx.agentId,
         }),
         createMemoryGetTool({
           config,

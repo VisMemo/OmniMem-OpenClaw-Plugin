@@ -8,10 +8,7 @@ const plugin = {
   register(api) {
     const config = resolveOmniCommonConfig(api.pluginConfig);
 
-    api.on("before_agent_start", async (event, ctx) => {
-      api.logger.info(`[omnimemory-overlay] before_agent_start hook called, event.prompt type: ${typeof event?.prompt}, value: ${JSON.stringify(event?.prompt?.slice(0, 100))}`);
-      api.logger.info(`[omnimemory-overlay] event keys: ${Object.keys(event || {}).join(', ')}`);
-      api.logger.info(`[omnimemory-overlay] ctx keys: ${Object.keys(ctx || {}).join(', ')}`);
+    api.on("before_prompt_build", async (event, ctx) => {
       return await buildOverlayRecallContext({
         config,
         event,

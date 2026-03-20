@@ -6,18 +6,21 @@ function normalizeString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-export function buildPersistentStatePath({ workspaceDir, sessionFile, sessionKey, sessionId }) {
+export function buildPersistentStatePath({ workspaceDir, sessionFile, sessionKey, sessionId, scopeId }) {
   const workspaceRoot = normalizeString(workspaceDir);
   if (!workspaceRoot) {
     return normalizeString(sessionFile)
       ? `${sessionFile.trim()}.omnimemory-state.json`
       : undefined;
   }
-  const baseId = normalizeString(sessionKey) || normalizeString(sessionId);
+  const baseId = normalizeString(scopeId) || normalizeString(sessionId) || normalizeString(sessionKey);
   if (!baseId) {
     return normalizeString(sessionFile)
       ? `${sessionFile.trim()}.omnimemory-state.json`
       : path.join(workspaceRoot, ".omnimemory", "state", "global.json");
+  }
+  if (baseId === "global") {
+    return path.join(workspaceRoot, ".omnimemory", "state", "global.json");
   }
   const digest = createHash("sha1").update(baseId).digest("hex");
   return path.join(workspaceRoot, ".omnimemory", "state", `${digest}.json`);
