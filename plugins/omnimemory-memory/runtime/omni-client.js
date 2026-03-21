@@ -6,6 +6,7 @@ import { fingerprintMessages } from "./messages.js";
 import { readPersistentState, writePersistentState } from "./persistent-state.js";
 
 const sessionWriteState = new Map();
+const sessionWriteLocks = new Map();
 
 function normalizeString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -13,6 +14,24 @@ function normalizeString(value) {
 
 function normalizeArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+async function runWithSessionWriteLock(scopeId, task) {
+  const previous = sessionWriteLocks.get(scopeId) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => {
+    release = resolve;
+  });
+  sessionWriteLocks.set(scopeId, current);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (sessionWriteLocks.get(scopeId) === current) {
+      sessionWriteLocks.delete(scopeId);
+    }
+  }
 }
 
 async function requestJson({ config, path, method = "GET", body }) {
@@ -238,63 +257,65 @@ export async function ingestMessages({
   if (!resolvedScopeId) {
     throw new Error("session-scoped ingest requires sessionKey or sessionId");
   }
-  const turns = Array.isArray(messages) ? messages : [];
-  if (!turns.length) {
-    return { skipped: true, reason: "no turns" };
-  }
-  const fingerprint = fingerprintMessages(turns);
-  const stateKey = resolvedScopeId;
-  const lastState = sessionWriteState.get(stateKey);
-  const persistedState = await readPersistentState(statePath);
-  const previousFingerprint =
-    (lastState?.sessionId === resolvedScopeId ? lastState.fingerprint : undefined) ||
-    (persistedState?.sessionId === resolvedScopeId ? persistedState.fingerprint : undefined);
-  if (previousFingerprint === fingerprint) {
-    return { skipped: true, reason: "duplicate" };
-  }
+  return await runWithSessionWriteLock(resolvedScopeId, async () => {
+    const turns = Array.isArray(messages) ? messages : [];
+    if (!turns.length) {
+      return { skipped: true, reason: "no turns" };
+    }
+    const fingerprint = fingerprintMessages(turns);
+    const stateKey = resolvedScopeId;
+    const lastState = sessionWriteState.get(stateKey);
+    const persistedState = await readPersistentState(statePath);
+    const previousFingerprint =
+      (lastState?.sessionId === resolvedScopeId ? lastState.fingerprint : undefined) ||
+      (persistedState?.sessionId === resolvedScopeId ? persistedState.fingerprint : undefined);
+    if (previousFingerprint === fingerprint) {
+      return { skipped: true, reason: "duplicate" };
+    }
 
-  const session = await getSessionStatus({ config, sessionId: resolvedScopeId });
-  const baseTurnId = normalizeString(session?.cursor_committed);
-  const currentIndex = baseTurnId && /^t(\d+)$/i.test(baseTurnId) ? Number(baseTurnId.slice(1)) : 0;
-  const payloadTurns = turns.map((turn, index) => ({
-    turn_id: `t${String(currentIndex + index + 1).padStart(4, "0")}`,
-    role: turn.role,
-    name: turn.name || null,
-    speaker: turn.name || null,
-    timestamp_iso: turn.timestampIso || new Date().toISOString(),
-    text: turn.text,
-    attachments: null,
-    meta: null,
-  }));
+    const session = await getSessionStatus({ config, sessionId: resolvedScopeId });
+    const baseTurnId = normalizeString(session?.cursor_committed);
+    const currentIndex = baseTurnId && /^t(\d+)$/i.test(baseTurnId) ? Number(baseTurnId.slice(1)) : 0;
+    const payloadTurns = turns.map((turn, index) => ({
+      turn_id: `t${String(currentIndex + index + 1).padStart(4, "0")}`,
+      role: turn.role,
+      name: turn.name || null,
+      speaker: turn.name || null,
+      timestamp_iso: turn.timestampIso || new Date().toISOString(),
+      text: turn.text,
+      attachments: null,
+      meta: null,
+    }));
 
-  const payload = await requestJson({
-    config,
-    path: "/ingest",
-    method: "POST",
-    body: {
-      session_id: resolvedScopeId,
-      memory_domain: "dialog",
-      turns: payloadTurns,
-      commit_id: randomUUID(),
-      cursor: { base_turn_id: baseTurnId || null },
-    },
+    const payload = await requestJson({
+      config,
+      path: "/ingest",
+      method: "POST",
+      body: {
+        session_id: resolvedScopeId,
+        memory_domain: "dialog",
+        turns: payloadTurns,
+        commit_id: randomUUID(),
+        cursor: { base_turn_id: baseTurnId || null },
+      },
+    });
+    const nextState = {
+      fingerprint,
+      count: payloadTurns.length,
+      sessionId: resolvedScopeId,
+      updatedAt: new Date().toISOString(),
+    };
+    sessionWriteState.set(stateKey, nextState);
+    await writePersistentState(statePath, nextState);
+    const jobId = normalizeString(payload?.job_id);
+    if (wait && jobId) {
+      await waitForJob({ config, jobId, timeoutMs: Math.max(config.timeoutMs, 60_000) });
+    }
+    return {
+      skipped: false,
+      sessionId: resolvedScopeId,
+      committedTurns: payloadTurns.length,
+      jobId,
+    };
   });
-  const nextState = {
-    fingerprint,
-    count: payloadTurns.length,
-    sessionId: resolvedScopeId,
-    updatedAt: new Date().toISOString(),
-  };
-  sessionWriteState.set(stateKey, nextState);
-  await writePersistentState(statePath, nextState);
-  const jobId = normalizeString(payload?.job_id);
-  if (wait && jobId) {
-    await waitForJob({ config, jobId, timeoutMs: Math.max(config.timeoutMs, 60_000) });
-  }
-  return {
-    skipped: false,
-    sessionId: resolvedScopeId,
-    committedTurns: payloadTurns.length,
-    jobId,
-  };
 }

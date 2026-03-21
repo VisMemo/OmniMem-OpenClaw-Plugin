@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  requireApiKey,
   resolveAgentId,
   resolveOmniCommonConfig,
   resolveSessionId,
@@ -32,6 +33,13 @@ test("resolveOmniCommonConfig resolves env template and defaults", () => {
   assert.equal(config.baseUrl, "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory");
   assert.equal(config.recallScope, "global");
   assert.equal(config.ingestScope, "session");
+});
+
+test("requireApiKey explains how to configure OmniMemory credentials", () => {
+  assert.throws(
+    () => requireApiKey({}),
+    /Set plugins\.entries\.<plugin>\.config\.apiKey, or use apiKey: "\$\{OMNI_MEMORY_API_KEY\}"/,
+  );
 });
 
 test("synthetic path roundtrip works for events", () => {

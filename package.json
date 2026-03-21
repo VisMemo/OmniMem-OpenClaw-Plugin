@@ -7,6 +7,8 @@
   "scripts": {
     "test": "node --test ./test/runtime.test.mjs ./test/plugins.test.mjs ./test/replacement-patch.test.mjs ./test/installer-skill.test.mjs ./test/standard-packaging.test.mjs",
     "test:integration": "node --test ./test/*.integration.test.mjs",
+    "test:live:overlay": "node ./scripts/run-live-smoke.mjs --mode overlay",
+    "test:live:replacement": "node ./scripts/run-live-smoke.mjs --mode replacement",
     "smoke:memory-slot": "node ./scripts/run-local-memory-slot-smoke.mjs",
     "smoke:standard-install": "node ./scripts/run-standard-install-smoke.mjs",
     "doctor": "node ./scripts/doctor.mjs",

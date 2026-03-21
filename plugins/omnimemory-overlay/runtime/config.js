@@ -135,7 +135,9 @@ export function resolveAgentId(ctx = {}) {
 
 export function requireApiKey(config) {
   if (!config.apiKey) {
-    throw new Error("omnimemory apiKey is required");
+    throw new Error(
+      'OmniMemory API key is missing. Set plugins.entries.<plugin>.config.apiKey, or use apiKey: "${OMNI_MEMORY_API_KEY}" and export OMNI_MEMORY_API_KEY before starting OpenClaw.',
+    );
   }
   return config.apiKey;
 }

@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import os from "node:os";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadConfigObject } from "./openclaw-config.mjs";
+import {
+  assertReplacementCompatibility,
+  resolveReplacementCompatibility,
+} from "./replacement-compatibility.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,51 +244,6 @@ function resolveModeSpec(mode, rootDir) {
   };
 }
 
-function resolveConfigPathFromEnv(env = process.env) {
-  const configOverride = env.OPENCLAW_CONFIG_PATH?.trim() || env.CLAWDBOT_CONFIG_PATH?.trim();
-  if (configOverride) {
-    return path.resolve(configOverride);
-  }
-  const stateDir = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
-  if (stateDir) {
-    return path.join(path.resolve(stateDir), "openclaw.json");
-  }
-  return path.join(os.homedir(), ".openclaw", "openclaw.json");
-}
-
-function parseConfigText(text, openclawRoot) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    try {
-      const requireFromOpenClaw = createRequire(path.join(openclawRoot, "package.json"));
-      const json5 = requireFromOpenClaw("json5");
-      return json5.parse(text);
-    } catch (error) {
-      throw new Error(
-        `failed to parse config as JSON/JSON5: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-}
-
-function loadConfigObject(openclawRoot) {
-  const configPath = resolveConfigPathFromEnv(process.env);
-  try {
-    const text = readFileSync(configPath, "utf8");
-    const parsed = parseConfigText(text, openclawRoot);
-    return {
-      configPath,
-      config: parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {},
-    };
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      return { configPath, config: {} };
-    }
-    throw error;
-  }
-}
-
 function writeConfigObject(configPath, config) {
   mkdirSync(path.dirname(configPath), { recursive: true });
   try {
@@ -379,6 +337,10 @@ function buildInstallPlan(command, options, spec) {
   return steps;
 }
 
+function ensureReplacementCompatibility(openclawRoot, action) {
+  return assertReplacementCompatibility(openclawRoot, action);
+}
+
 function applyModeConfig(spec, options) {
   const apiKeyValue = options.apiKey || `\${${options.apiKeyEnv}}`;
   const { configPath, config } = loadConfigObject(options.openclawRoot);
@@ -415,6 +377,10 @@ function applyModeConfig(spec, options) {
 
 function runInstallLike(command, options) {
   const spec = resolveModeSpec(options.mode, options.pluginRoot);
+  const compatibility =
+    options.mode === "replacement"
+      ? ensureReplacementCompatibility(options.openclawRoot, "install")
+      : null;
   const steps = buildInstallPlan(command, options, spec);
   if (options.dryRun) {
     return {
@@ -423,6 +389,7 @@ function runInstallLike(command, options) {
       mode: options.mode,
       pluginId: spec.pluginId,
       packageDir: spec.packageDir,
+      compatibility,
       steps,
     };
   }
@@ -454,6 +421,7 @@ function runInstallLike(command, options) {
     mode: options.mode,
     pluginId: spec.pluginId,
     packageDir: spec.packageDir,
+    compatibility,
     install: { ok: install.ok, output: install.output },
     validation: parseMaybeJson(validation.output, { raw: validation.output }),
     patch: patch ? { ok: patch.ok, output: patch.output } : null,
@@ -565,6 +533,7 @@ function runRollback(command, options) {
 function runStatus(command, options) {
   const slot = runCommand(command, ["config", "get", "plugins.slots.memory"], { allowFailure: true });
   const patchStatus = runNode(buildPatchArgs(options, "status"), { allowFailure: true });
+  const replacementCompatibility = resolveReplacementCompatibility(options.openclawRoot);
   const overlayInfo = pluginExists(command, "omnimemory-overlay")
     ? getPluginInfo(command, "omnimemory-overlay")
     : { data: null };
@@ -575,6 +544,7 @@ function runStatus(command, options) {
     ok: true,
     command: "status",
     slot: slot.output || null,
+    replacementCompatibility,
     patch: parseMaybeJson(patchStatus.output, { raw: patchStatus.output }),
     overlay: overlayInfo.data || null,
     replacement: replacementInfo.data || null,
@@ -587,16 +557,25 @@ function runSmoke(command, options) {
   const slot = runCommand(command, ["config", "get", "plugins.slots.memory"], { allowFailure: true });
   const validation = runCommand(command, ["config", "validate", "--json"], { allowFailure: true });
   const doctor = runCommand(command, ["plugins", "doctor"], { allowFailure: true });
+  const compatibility =
+    options.mode === "replacement" ? resolveReplacementCompatibility(options.openclawRoot) : null;
   const restart = options.skipRestart
     ? null
     : runCommand(command, ["gateway", "restart"], { allowFailure: true });
   const gatewayStatus = runCommand(command, ["gateway", "status", "--json"], { allowFailure: true });
   const report = {
-    ok: pluginInfo.ok && validation.ok && doctor.ok && (!restart || restart.ok) && gatewayStatus.ok,
+    ok:
+      pluginInfo.ok &&
+      validation.ok &&
+      doctor.ok &&
+      (!restart || restart.ok) &&
+      gatewayStatus.ok &&
+      (!compatibility || compatibility.supported),
     command: "smoke",
     mode: options.mode,
     plugin: pluginInfo.data || null,
     slot: slot.output || null,
+    compatibility,
     validation: parseMaybeJson(validation.output, { raw: validation.output }),
     doctor: doctor.output,
     restart: restart ? { ok: restart.ok, output: restart.output } : null,
@@ -606,6 +585,7 @@ function runSmoke(command, options) {
       memorySlotMatches:
         options.mode === "replacement" ? slot.output.trim() === '"omnimemory-memory"' : slot.output.trim() === '"memory-core"',
       gatewayReachable: gatewayStatus.ok,
+      replacementVersionSupported: compatibility ? compatibility.supported : true,
     },
   };
   return report;
@@ -655,7 +635,7 @@ function main() {
     }
     return 0;
   } catch (error) {
-    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    console.error(error instanceof Error ? error.message : String(error));
     printUsage();
     return 1;
   }

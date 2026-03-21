@@ -3,6 +3,10 @@ import path from "node:path";
 import { constants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  assertReplacementCompatibility,
+  resolveReplacementCompatibility,
+} from "./replacement-compatibility.mjs";
+import {
   patchSystemPromptSource,
   patchBootstrapSource,
   isSystemPromptPatched,
@@ -39,6 +43,46 @@ function printUsage() {
       "  node scripts/openclaw-replacement-patch.mjs revert [--openclaw-root <path>] [--force]",
     ].join("\n"),
   );
+}
+
+function buildPatchCliError({ command, openclawRoot, error }) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/no patch state found; cannot revert safely/i.test(message)) {
+    return [
+      "replacement revert failed",
+      `reason: ${message}`,
+      "impact: replacement patch files were not reverted because there is no saved patch state for this OpenClaw checkout.",
+      "next step: run `node scripts/openclaw-replacement-patch.mjs status --openclaw-root <path>` first. If the files were edited manually, inspect them and use --force only when you are sure the current files should be overwritten.",
+    ].join("\n");
+  }
+  if (/anchor .*cannot apply patch safely|anchor .*changed upstream/i.test(message)) {
+    return [
+      "replacement apply failed",
+      `reason: ${message}`,
+      "impact: replacement is blocked because this OpenClaw source no longer matches the verified patch anchors.",
+      `next step: keep using overlay on this checkout, or run \`node scripts/doctor.mjs --openclaw-root ${openclawRoot}\` and only extend replacement support after re-validating this OpenClaw version.`,
+    ].join("\n");
+  }
+  if (/missing target file:/i.test(message)) {
+    return [
+      "replacement patch command failed",
+      `reason: ${message}`,
+      "impact: the expected OpenClaw source files are not present, so the replacement patch cannot be inspected or changed safely.",
+      "next step: verify --openclaw-root points at a full OpenClaw source checkout.",
+    ].join("\n");
+  }
+  if (/replacement .* blocked for OpenClaw /i.test(message)) {
+    return message;
+  }
+  if (/unknown argument:|unknown command:|requires a value/i.test(message)) {
+    return message;
+  }
+  return [
+    `replacement ${command || "patch"} failed`,
+    `reason: ${message}`,
+    "impact: the replacement patch command did not finish, so the OpenClaw checkout was left unchanged.",
+    "next step: review the error above, then rerun `status` first to inspect the current patch state before retrying.",
+  ].join("\n");
 }
 
 function parseArgs(argv) {
@@ -113,13 +157,16 @@ async function status(openclawRoot) {
   await ensureOpenClawRoot(openclawRoot);
   const targets = await Promise.all(TARGETS.map((target) => readTarget(openclawRoot, target)));
   const state = await readCurrentState(openclawRoot);
+  const compatibility = resolveReplacementCompatibility(openclawRoot);
   const report = {
     openclawRoot,
+    compatibility,
     patched: targets.every((item) => item.patched),
     files: targets.map((item) => ({
       id: item.id,
       filePath: item.filePath,
       patched: item.patched,
+      anchorState: item.patched ? "patched" : "unpatched",
       hash: item.hash,
     })),
     stateFile: buildStateFile(openclawRoot),
@@ -136,6 +183,7 @@ function buildTimestampId() {
 
 async function apply(openclawRoot) {
   await ensureOpenClawRoot(openclawRoot);
+  const compatibility = assertReplacementCompatibility(openclawRoot, "apply");
   const current = await Promise.all(TARGETS.map((target) => readTarget(openclawRoot, target)));
 
   const prepared = current.map((item) => {
@@ -151,12 +199,13 @@ async function apply(openclawRoot) {
   if (!prepared.some((item) => item.changed)) {
     console.log(
       JSON.stringify(
-        {
-          ok: true,
-          openclawRoot,
-          changed: false,
-          message: "already patched or no-op",
-        },
+      {
+        ok: true,
+        openclawRoot,
+        compatibility,
+        changed: false,
+        message: "already patched or no-op",
+      },
         null,
         2,
       ),
@@ -201,6 +250,7 @@ async function apply(openclawRoot) {
       {
         ok: true,
         openclawRoot,
+        compatibility,
         changed: true,
         backupDir,
         files: stateEntries.map((entry) => ({
@@ -260,8 +310,9 @@ async function revert(openclawRoot, force) {
 }
 
 async function main() {
+  let parsed;
   try {
-    const parsed = parseArgs(process.argv.slice(2));
+    parsed = parseArgs(process.argv.slice(2));
     if (!parsed.command || ["-h", "--help", "help"].includes(parsed.command)) {
       printUsage();
       process.exitCode = 0;
@@ -280,7 +331,13 @@ async function main() {
     }
     await revert(parsed.openclawRoot, parsed.force);
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(
+      buildPatchCliError({
+        command: parsed?.command,
+        openclawRoot: parsed?.openclawRoot || defaultOpenClawRoot,
+        error,
+      }),
+    );
     printUsage();
     process.exitCode = 1;
   }

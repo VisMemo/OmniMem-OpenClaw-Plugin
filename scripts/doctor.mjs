@@ -2,6 +2,8 @@ import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadConfigObject } from "./openclaw-config.mjs";
+import { resolveReplacementCompatibility } from "./replacement-compatibility.mjs";
 import { patchSystemPromptSource, patchBootstrapSource } from "../src/replacement/patch-core.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,6 +40,16 @@ async function fileExists(filePath) {
 
 function record(ok, id, message, details = undefined) {
   return { ok, id, message, ...(details === undefined ? {} : { details }) };
+}
+
+function isReplacementEnabled(config) {
+  if (!config || typeof config !== "object") {
+    return false;
+  }
+  if (config?.plugins?.slots?.memory === "omnimemory-memory") {
+    return true;
+  }
+  return Boolean(config?.plugins?.entries?.["omnimemory-memory"]?.enabled);
 }
 
 async function runDoctor(openclawRoot) {
@@ -149,6 +161,37 @@ async function runDoctor(openclawRoot) {
         }),
       );
     }
+  }
+
+  try {
+    const { config } = loadConfigObject(openclawRoot, process.env);
+    const replacementEnabled = isReplacementEnabled(config);
+    const compatibility = resolveReplacementCompatibility(openclawRoot);
+    if (replacementEnabled && !compatibility.supported) {
+      checks.push(
+        record(false, "replacement.version_support", "replacement is enabled but this OpenClaw version is unsupported", {
+          openclawVersion: compatibility.version,
+          supportedVersions: compatibility.supportedVersions,
+          reason: compatibility.reason,
+          impact: compatibility.impact,
+          nextStep: compatibility.nextStep,
+        }),
+      );
+    } else {
+      checks.push(
+        record(true, "replacement.version_support", "replacement version support check passed", {
+          openclawVersion: compatibility.version,
+          supported: compatibility.supported,
+          supportedVersions: compatibility.supportedVersions,
+        }),
+      );
+    }
+  } catch (error) {
+    checks.push(
+      record(false, "replacement.version_support", "failed to evaluate replacement version support", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
   }
 
   const ok = checks.every((item) => item.ok);
