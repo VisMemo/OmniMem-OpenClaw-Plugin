@@ -4,8 +4,29 @@
   "private": true,
   "type": "module",
   "description": "Dual-shape OmniMemory plugin project for OpenClaw",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VisMemo/OmniMem-OpenClaw-Plugin.git"
+  },
+  "homepage": "https://github.com/VisMemo/OmniMem-OpenClaw-Plugin",
+  "bugs": {
+    "url": "https://github.com/VisMemo/OmniMem-OpenClaw-Plugin/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "omnimemory",
+    "memory",
+    "plugin",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10",
   "scripts": {
-    "test": "node --test ./test/runtime.test.mjs ./test/plugins.test.mjs ./test/replacement-patch.test.mjs ./test/installer-skill.test.mjs ./test/standard-packaging.test.mjs",
+    "test": "node --test ./test/runtime.test.mjs ./test/plugins.test.mjs ./test/replacement-patch.test.mjs ./test/standard-packaging.test.mjs",
+    "test:installer-local": "node --test ./test/installer-skill.test.mjs",
     "test:integration": "node --test ./test/*.integration.test.mjs",
     "test:live:overlay": "node ./scripts/run-live-smoke.mjs --mode overlay",
     "test:live:replacement": "node ./scripts/run-live-smoke.mjs --mode replacement",

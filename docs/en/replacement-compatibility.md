@@ -6,7 +6,7 @@
 
 | OpenClaw Version | Status | Notes |
 | --- | --- | --- |
-| `2026.3.14` | supported | Validated on the current branch with replacement hook E2E. Prompt injection verification and live smoke are still tracked as release-signoff items in [测试与上线收口TODO.md](/Users/zhaoxiang/工作/Openclaw/OmniMem-OpenClaw-Plugin/docs/测试与上线收口TODO.md). |
+| `2026.3.14` | supported | Validated on the current branch with replacement hook E2E and prompt injection verification. Replacement live smoke still needs release-signoff review. |
 
 ## Rules
 

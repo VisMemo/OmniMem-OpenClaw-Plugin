@@ -1,0 +1,28 @@
+{
+  "gateway": {
+    "port": 18891,
+    "auth": {
+      "mode": "token",
+      "token": "omnimem-smoke-token"
+    }
+  },
+  "plugins": {
+    "enabled": true,
+    "load": {
+      "paths": [
+        "/ABSOLUTE/PATH/TO/OmniMem-OpenClaw-Plugin/plugins/omnimemory-overlay"
+      ]
+    },
+    "entries": {
+      "omnimemory-overlay": {
+        "enabled": true,
+        "config": {
+          "apiKey": "${OMNI_MEMORY_API_KEY}",
+          "baseUrl": "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory",
+          "autoRecall": true,
+          "autoCapture": true
+        }
+      }
+    }
+  }
+}

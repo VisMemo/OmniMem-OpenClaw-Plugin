@@ -36,6 +36,7 @@ If the API key is available, prefer storing `${OMNI_MEMORY_API_KEY}` in config i
    - Otherwise, if working from a repo checkout, prefer `node <openclawRoot>/dist/index.js`.
 2. Run the bundled installer script:
    - `skills/omnimemory-installer/scripts/install_omnimemory.mjs`
+   - This wrapper delegates to the repository-level `scripts/omnimemory-manage.mjs` install flow instead of re-implementing installation logic inside the skill.
 3. Validate:
    - `openclaw config validate`
    - `openclaw plugins doctor`

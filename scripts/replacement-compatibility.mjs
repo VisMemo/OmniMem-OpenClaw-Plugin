@@ -7,7 +7,7 @@ export const REPLACEMENT_SUPPORT_MATRIX = Object.freeze([
     status: "supported",
     scope: "replacement",
     notes:
-      "Validated on the current branch with replacement hook E2E. Prompt injection verification and live smoke remain tracked in docs/测试与上线收口TODO.md before release signoff.",
+      "Validated on the current branch with replacement hook E2E and prompt injection verification. Replacement live smoke still needs release-signoff review.",
   }),
 ]);
 
@@ -51,7 +51,7 @@ export function resolveReplacementCompatibility(openclawRoot) {
       : "Replacement is blocked so we do not install a patch against an unverified OpenClaw build.",
     nextStep: supportEntry
       ? "Proceed with replacement as usual."
-      : "Use a validated OpenClaw version from docs/replacement-compatibility.md, or extend the matrix only after running the full replacement verification suite.",
+      : "Use a validated OpenClaw version from docs/en/replacement-compatibility.md, or extend the matrix only after running the full replacement verification suite.",
   };
 }
 

@@ -1,83 +1,93 @@
-# OmniMem-OpenClaw-Plugin
+# OmniMem OpenClaw Plugin
 
-OmniMemory 的 OpenClaw 可插拔插件仓库。
+[![Open-Source CI](https://github.com/VisMemo/OmniMem-OpenClaw-Plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/VisMemo/OmniMem-OpenClaw-Plugin/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+[![Status: Beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 
-项目采用一个代码库、两个插件形态，并对外收敛为两种产品模式：
+Plug OmniMemory into OpenClaw as either a non-destructive memory overlay or a memory-slot replacement.
 
-1. `Overlay`
-   - 插件 id：`omnimemory-overlay`
-   - 非破坏性外挂增强
-   - 不接管 `plugins.slots.memory`
-2. `Replacement`
-   - 插件 id：`omnimemory-memory`
-   - `kind: "memory"`
-   - 接管 `plugins.slots.memory`
-   - 可选叠加 prompt/bootstrap patch，但 patch 不是第三种模式
+- English docs start here: [docs/en/getting-started.md](./docs/en/getting-started.md)
+- Chinese overview: [README.zh-CN.md](./README.zh-CN.md)
+- Current compatibility notes: [docs/en/replacement-compatibility.md](./docs/en/replacement-compatibility.md)
 
-## 当前结论
+## Why This Repo Exists
 
-当前仓库已经完成：
+This repository packages OmniMemory for OpenClaw in two product modes:
 
-1. 双插件骨架与共享 runtime
-2. 标准本地可安装插件包
-3. 安装 / 切换 / 卸载 / 回滚管理脚本
-4. patch 工具链与 doctor 诊断
-5. 本地 mock 集成测试
-6. 真实 OpenClaw Gateway smoke
-7. 真实 Omni API smoke
-8. Agent 托管安装 skill
+- `Overlay`
+  - Adds long-term memory through plugin hooks.
+  - Does not take over `plugins.slots.memory`.
+  - Recommended default for most users.
+- `Replacement`
+  - Provides an OmniMemory-backed `kind: "memory"` slot plugin.
+  - Can optionally use a compatibility patch to suppress local memory bootstrap behavior.
+  - Advanced mode with stricter OpenClaw version alignment.
 
-真实 smoke 的最新结论是：
+## Quick Start
 
-1. `Overlay` 可真实写入并召回 OmniMemory
-2. `Replacement` 可真实接管 `memory_search / memory_get`
-3. 两种模式都已经证明“可安装、可加载、可联动”
-4. 但当前 Omni 检索的 `run_id` 语义还不能被视为严格 session 隔离，`Replacement` 仍应视为高级实验替换版
-
-## 快速开始
-
-标准安装：
+1. Set your OmniMemory API key.
 
 ```bash
-openclaw plugins install /abs/path/to/OmniMem-OpenClaw-Plugin/plugins/omnimemory-overlay
-openclaw plugins install /abs/path/to/OmniMem-OpenClaw-Plugin/plugins/omnimemory-memory
+export OMNI_MEMORY_API_KEY="qbk_xxx"
 ```
 
-推荐使用统一管理脚本：
+2. Install the recommended `Overlay` mode.
 
 ```bash
+git clone https://github.com/VisMemo/OmniMem-OpenClaw-Plugin.git
 cd OmniMem-OpenClaw-Plugin
 node scripts/omnimemory-manage.mjs install --mode overlay
-node scripts/omnimemory-manage.mjs switch --mode replacement --apply-patch
-node scripts/omnimemory-manage.mjs rollback
-node scripts/omnimemory-manage.mjs uninstall --mode replacement --revert-patch
 ```
 
-常用验证命令：
+3. Validate the installation.
 
 ```bash
-cd OmniMem-OpenClaw-Plugin
-npm run packages:sync
 npm run doctor
-npm test
-npm run test:integration
-npm run smoke:standard-install
 ```
 
-可选 patch：
+To switch to `Replacement` later:
 
 ```bash
-cd OmniMem-OpenClaw-Plugin
-npm run patch:status
-npm run patch:apply
-npm run patch:revert
+node scripts/omnimemory-manage.mjs switch --mode replacement --apply-patch
 ```
 
-## 仓库结构
+## Architecture
+
+```mermaid
+graph TB
+  User[User / Agent] --> Gateway[OpenClaw Gateway]
+  Gateway -->|before_prompt_build| Overlay[omnimemory-overlay]
+  Gateway -->|memory_search / memory_get| Replacement[omnimemory-memory]
+  Overlay -->|recall| OmniAPI[OmniMemory API]
+  Replacement -->|search / read| OmniAPI
+  Gateway -->|agent_end / before_compaction / before_reset| Overlay
+  Gateway -->|agent_end / before_compaction / before_reset| Replacement
+  Overlay -->|capture| OmniAPI
+  Replacement -->|ingest| OmniAPI
+```
+
+## Choose A Mode
+
+| Mode | Best for | Recommended |
+| --- | --- | --- |
+| `Overlay` | External memory augmentation without taking over OpenClaw memory internals | Yes |
+| `Replacement` | Advanced users who want OmniMemory to back `memory_search` and `memory_get` directly | Only if you need memory-slot replacement |
+
+## Project Status
+
+Current public status:
+
+- `Overlay` is the recommended production-facing beta path.
+- `Replacement` is available, tested, and version-gated, but still positioned as an advanced workflow.
+- Real OpenClaw gateway smoke and real OmniMemory smoke have both been exercised locally.
+- Some upstream and backend limitations still exist. See [docs/en/limitations.md](./docs/en/limitations.md).
+
+## Repository Layout
 
 ```text
 OmniMem-OpenClaw-Plugin/
   docs/
+  examples/
   plugins/
     omnimemory-overlay/
     omnimemory-memory/
@@ -85,20 +95,31 @@ OmniMem-OpenClaw-Plugin/
   skills/
   src/
   test/
-  TODO.md
 ```
 
-## 主要文档
+## Common Commands
 
-1. [使用说明](./docs/使用说明.md)
-2. [实现原则](./docs/实现原则.md)
-3. [OpenClaw 接口映射](./docs/OpenClaw-接口映射.md)
-4. [当前限制与后续工作](./docs/当前限制与后续工作.md)
-5. [Agent 托管安装说明](./docs/Agent托管安装说明.md)
+```bash
+npm run packages:sync
+npm test
+npm run test:integration
+npm run doctor
+npm run smoke:standard-install
+npm run patch:status
+```
 
-## 当前推荐口径
+## Documentation
 
-1. 默认推荐 `Overlay`
-2. `Replacement` 面向高级用户和实验替换场景
-3. patch 只作为 `Replacement` 的增强层
-4. 在严格会话隔离要求下，需先进一步确认 Omni 的 session 检索语义
+- [Getting Started](./docs/en/getting-started.md)
+- [Overlay Mode](./docs/en/overlay-mode.md)
+- [Replacement Mode](./docs/en/replacement-mode.md)
+- [Configuration](./docs/en/configuration.md)
+- [Architecture](./docs/en/architecture.md)
+- [Limitations](./docs/en/limitations.md)
+- [Replacement Compatibility](./docs/en/replacement-compatibility.md)
+- [Agent Installation](./docs/en/agent-installation.md)
+- [Contribution Guide](./CONTRIBUTING.md)
+
+## License
+
+MIT. See [LICENSE](./LICENSE).

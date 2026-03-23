@@ -8,6 +8,8 @@ const skillRoot = path.resolve(__dirname, "..");
 const pluginRoot = path.resolve(skillRoot, "../..");
 const manageScript = path.join(pluginRoot, "scripts", "omnimemory-manage.mjs");
 
+// Thin wrapper: keep the skill entrypoint stable while delegating the real
+// installation workflow to the repository-level manage script.
 const passthroughArgs = process.argv.slice(2);
 const result = spawnSync("node", [manageScript, "install", ...passthroughArgs], {
   encoding: "utf8",

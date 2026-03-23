@@ -60,7 +60,7 @@
 
 1. 增加一份支持矩阵配置
    - 例如：
-     [docs/replacement-compatibility.md](/Users/zhaoxiang/工作/Openclaw/OmniMem-OpenClaw-Plugin/docs/replacement-compatibility.md)
+     [docs/en/replacement-compatibility.md](/Users/zhaoxiang/工作/Openclaw/OmniMem-OpenClaw-Plugin/docs/en/replacement-compatibility.md)
    - 明确写出：
      - 支持的 OpenClaw tag / semver 区间
      - 每个版本对应的 patch 状态

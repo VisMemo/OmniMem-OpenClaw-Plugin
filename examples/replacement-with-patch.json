@@ -1,0 +1,39 @@
+{
+  "gateway": {
+    "port": 18891,
+    "auth": {
+      "mode": "token",
+      "token": "omnimem-smoke-token"
+    }
+  },
+  "plugins": {
+    "enabled": true,
+    "load": {
+      "paths": [
+        "/ABSOLUTE/PATH/TO/OmniMem-OpenClaw-Plugin/plugins/omnimemory-memory"
+      ]
+    },
+    "slots": {
+      "memory": "omnimemory-memory"
+    },
+    "entries": {
+      "omnimemory-memory": {
+        "enabled": true,
+        "config": {
+          "apiKey": "${OMNI_MEMORY_API_KEY}",
+          "baseUrl": "https://zdfdulpnyaci.sealoshzh.site/api/v1/memory",
+          "recallScope": "global",
+          "ingestScope": "session",
+          "searchLimit": 8,
+          "failSilent": true,
+          "timeoutMs": 10000,
+          "autoCapture": true,
+          "captureStrategy": "last_turn",
+          "captureRoles": ["user"],
+          "writeWait": false,
+          "suppressLocalMemoryBootstrap": true
+        }
+      }
+    }
+  }
+}
